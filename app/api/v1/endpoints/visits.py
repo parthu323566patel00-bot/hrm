@@ -10,11 +10,12 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.api.deps import get_current_user
+from app.core.constants.roles import RoleId
 from app.core.database import get_db
 from app.models.appointment import Appointment
 from app.models.billing_item import BillingItem
@@ -121,7 +122,7 @@ async def start_consultation(
     current_user: User = Depends(get_current_user),
 ) -> Any:
     """Atomically create Visit + MedicalRecord + AuditLog for a checked-in appointment."""
-    if current_user.role_id != 4:
+    if current_user.role_id != RoleId.DOCTOR:
         raise HTTPException(status_code=403, detail="Only doctors can start consultations.")
 
     appt_res = await db.execute(
@@ -135,9 +136,9 @@ async def start_consultation(
         raise HTTPException(status_code=404, detail="Appointment not found.")
     if appt.doctor_id != current_user.id:
         raise HTTPException(status_code=403, detail="You are not the assigned doctor.")
-    if appt.status != "checked_in":
+    if appt.status not in ("checked_in", "in_progress"):
         raise HTTPException(status_code=409,
-            detail=f"Appointment must be checked_in to start consultation. Current: {appt.status}.")
+            detail=f"Appointment must be checked_in or in_progress to start consultation. Current: {appt.status}.")
 
     existing_res = await db.execute(
         select(Visit).filter(
@@ -149,7 +150,7 @@ async def start_consultation(
         raise HTTPException(status_code=409,
             detail="A consultation is already active for this appointment.")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     try:
         visit = Visit(
             tenant_id=current_user.tenant_id,
@@ -167,6 +168,17 @@ async def start_consultation(
 
         appt.status = "in_progress"
         db.add(appt)
+
+        # Promote any pre-vitals recorded by nurse (visit_id was NULL) to this visit
+        pre_vitals_res = await db.execute(
+            select(Vitals).filter(
+                Vitals.appointment_id == appt.id,
+                Vitals.visit_id.is_(None),
+            )
+        )
+        for pv in pre_vitals_res.scalars().all():
+            pv.visit_id = visit.id
+            db.add(pv)
 
         _audit(db, visit_id=visit.id, action="VISIT_STARTED",
                actor_id=current_user.id, patient_id=appt.patient_id,
@@ -186,19 +198,6 @@ async def start_consultation(
     )
 
 
-# ── GET /visits/{visit_id} ────────────────────────────────────────────────────
-@router.get("/{visit_id}", response_model=VisitChartOut)
-async def get_visit_chart(
-    visit_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> Any:
-    visit = await _get_visit_or_404(db, visit_id, current_user.tenant_id)
-    if current_user.role_id not in (1, 2) and visit.doctor_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied.")
-    return await _build_chart(db, visit)
-
-
 # ── GET /visits/patient/{patient_id} ─────────────────────────────────────────
 @router.get("/patient/{patient_id}", response_model=List[VisitSummaryOut])
 async def get_patient_history(
@@ -210,7 +209,6 @@ async def get_patient_history(
         select(Visit).filter(
             Visit.patient_id == patient_id,
             Visit.tenant_id == current_user.tenant_id,
-            Visit.status == "COMPLETED",
         ).order_by(Visit.started_at.desc())
     )
     visits = res.scalars().all()
@@ -227,6 +225,72 @@ async def get_patient_history(
             primary_diagnosis=d.description if d else None,
         ))
     return out
+
+
+# ── GET /visits/can-start?appointment_id= ────────────────────────────────────
+# NOTE: must be defined BEFORE /{visit_id} to avoid route shadowing
+@router.get("/can-start")
+async def can_start_consultation(
+    appointment_id: int = Query(..., description="Appointment ID to check"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """Check whether the Start Consultation button should be enabled."""
+    appt_res = await db.execute(
+        select(Appointment).filter(
+            Appointment.id == appointment_id,
+            Appointment.tenant_id == current_user.tenant_id,
+        )
+    )
+    appt = appt_res.scalars().first()
+    if not appt:
+        return {"can_start": False, "reason": "Appointment not found."}
+
+    if appt.status == "cancelled":
+        return {"can_start": False, "reason": "Appointment is cancelled.", "hide": True}
+    if appt.status == "completed":
+        return {"can_start": False, "reason": "Appointment is completed.", "hide": True}
+    if appt.status == "scheduled":
+        return {"can_start": False, "reason": "Awaiting check-in."}
+
+    # For both checked_in and in_progress — check for an existing active visit
+    existing_res = await db.execute(
+        select(Visit).filter(
+            Visit.appointment_id == appointment_id,
+            Visit.status == "IN_PROGRESS",
+        )
+    )
+    existing = existing_res.scalars().first()
+    if existing:
+        return {"can_start": False, "reason": "Consultation in progress.",
+                "visit_id": existing.id}
+
+    # checked_in with no active visit → ready to start
+    if appt.status == "checked_in":
+        return {"can_start": True, "reason": "Ready to start."}
+
+    # in_progress but no visit yet (appointment was checked-in via old flow)
+    # Treat same as checked_in — let doctor start
+    if appt.status == "in_progress":
+        return {"can_start": True, "reason": "Ready to start consultation."}
+
+    return {"can_start": False, "reason": f"Unexpected status: {appt.status}."}
+
+
+# ── GET /visits/{visit_id} ────────────────────────────────────────────────────
+@router.get("/{visit_id}", response_model=VisitChartOut)
+async def get_visit_chart(
+    visit_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    visit = await _get_visit_or_404(db, visit_id, current_user.tenant_id)
+    if current_user.role_id not in (
+        RoleId.SUPER_ADMIN, RoleId.HOSPITAL_ADMIN, RoleId.RECEPTIONIST,
+        RoleId.DOCTOR, RoleId.NURSE,
+    ) and visit.doctor_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied.")
+    return await _build_chart(db, visit)
 
 
 # ── POST /visits/{visit_id}/vitals ────────────────────────────────────────────
@@ -436,7 +500,7 @@ async def sign_consultation(
     if mr.signature_hash:
         raise HTTPException(status_code=409, detail="Medical record is already signed.")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     payload = f"{visit_id}:{current_user.id}:{now.isoformat()}"
     sig = hashlib.sha256(payload.encode()).hexdigest()
     mr.signed_by = current_user.id
@@ -471,7 +535,7 @@ async def complete_consultation(
     appt_res = await db.execute(select(Appointment).filter(Appointment.id == visit.appointment_id))
     appt = appt_res.scalars().first()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     try:
         visit.status = "COMPLETED"
         visit.completed_at = now
@@ -535,7 +599,7 @@ async def amend_medical_record(
     mr = mr_res.scalars().first()
     if not mr or not mr.is_immutable:
         raise HTTPException(status_code=409, detail="Amendment only applies to completed records.")
-    if current_user.role_id not in (1, 2, 4):
+    if current_user.role_id not in (RoleId.SUPER_ADMIN, RoleId.HOSPITAL_ADMIN, RoleId.DOCTOR):
         raise HTTPException(status_code=403, detail="Not authorised to amend.")
 
     snapshot = {
@@ -543,7 +607,7 @@ async def amend_medical_record(
         "is_immutable": mr.is_immutable,
         "signed_by": mr.signed_by,
         "signed_at": mr.signed_at.isoformat() if mr.signed_at else None,
-        "snapshot_at": datetime.now(timezone.utc).isoformat(),
+        "snapshot_at": datetime.utcnow().isoformat(),
     }
     if body.clinical_note_id and body.new_content:
         note_res = await db.execute(
@@ -581,7 +645,7 @@ async def get_audit_log(
     current_user: User = Depends(get_current_user),
 ) -> Any:
     visit = await _get_visit_or_404(db, visit_id, current_user.tenant_id)
-    if current_user.role_id not in (1, 2) and visit.doctor_id != current_user.id:
+    if current_user.role_id not in (RoleId.SUPER_ADMIN, RoleId.HOSPITAL_ADMIN) and visit.doctor_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied.")
     res = await db.execute(
         select(VisitAuditLog)
@@ -591,43 +655,153 @@ async def get_audit_log(
     return res.scalars().all()
 
 
-# ── GET /visits/{visit_id}/check-start ───────────────────────────────────────
-@router.get("/{appointment_id}/can-start")
-async def can_start_consultation(
-    appointment_id: int,
+# ── GET /visits/prescriptions/pharmacy ───────────────────────────────────────
+@router.get("/prescriptions/pharmacy")
+async def list_pharmacy_prescriptions(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Any:
-    """Check whether the Start Consultation button should be enabled."""
-    appt_res = await db.execute(
-        select(Appointment).filter(
-            Appointment.id == appointment_id,
-            Appointment.tenant_id == current_user.tenant_id,
-        )
+    """Pharmacist view — prescriptions available for dispensing. No N+1 queries."""
+    if current_user.role_id not in (
+        RoleId.SUPER_ADMIN, RoleId.HOSPITAL_ADMIN, RoleId.PHARMACIST,
+    ):
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    res = await db.execute(
+        select(Prescription).join(Visit, Visit.id == Prescription.visit_id).filter(
+            Visit.tenant_id == current_user.tenant_id,
+            Prescription.status == "AVAILABLE_TO_PHARMACY",
+        ).order_by(Prescription.prescribed_at.desc())
     )
-    appt = appt_res.scalars().first()
-    if not appt:
-        return {"can_start": False, "reason": "Appointment not found."}
+    prescriptions = res.scalars().all()
+    if not prescriptions:
+        return []
 
-    if appt.status == "cancelled":
-        return {"can_start": False, "reason": "Appointment is cancelled.", "hide": True}
-    if appt.status == "completed":
-        return {"can_start": False, "reason": "Appointment is completed.", "hide": True}
-    if appt.status == "scheduled":
-        return {"can_start": False, "reason": "Awaiting check-in."}
+    visit_ids   = list({p.visit_id for p in prescriptions})
+    visits_map  = {v.id: v for v in (await db.execute(select(Visit).filter(Visit.id.in_(visit_ids)))).scalars()}
+    patient_ids = list({v.patient_id for v in visits_map.values()})
+    pat_map     = {p.id: p for p in (await db.execute(select(Patient).filter(Patient.id.in_(patient_ids)))).scalars()}
 
-    existing_res = await db.execute(
-        select(Visit).filter(
-            Visit.appointment_id == appointment_id,
-            Visit.status == "IN_PROGRESS",
-        )
+    return [
+        {
+            "id": p.id, "visit_id": p.visit_id,
+            "patient_id":      visits_map[p.visit_id].patient_id,
+            "patient_name":    pat_map.get(visits_map[p.visit_id].patient_id, None) and pat_map[visits_map[p.visit_id].patient_id].name or "Unknown",
+            "medication_name": p.medication_name, "dosage": p.dosage,
+            "frequency":       p.frequency, "duration": p.duration,
+            "route":           p.route, "instructions": p.instructions,
+            "status":          p.status, "prescribed_at": p.prescribed_at,
+        }
+        for p in prescriptions
+    ]
+
+
+# ── GET /visits/lab-orders/laboratory ────────────────────────────────────────
+@router.get("/lab-orders/laboratory")
+async def list_laboratory_orders(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """Lab technician view — lab orders ready for processing. No N+1 queries."""
+    if current_user.role_id not in (RoleId.SUPER_ADMIN, RoleId.HOSPITAL_ADMIN, RoleId.LAB_TECHNICIAN):
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    res = await db.execute(
+        select(LabOrder).join(Visit, Visit.id == LabOrder.visit_id).filter(
+            Visit.tenant_id == current_user.tenant_id,
+            LabOrder.status == "VISIBLE_TO_LAB",
+        ).order_by(LabOrder.ordered_at.desc())
     )
-    existing = existing_res.scalars().first()
-    if existing:
-        return {"can_start": False, "reason": "Consultation in progress.",
-                "visit_id": existing.id}
+    orders = res.scalars().all()
+    if not orders:
+        return []
 
-    if appt.status == "checked_in":
-        return {"can_start": True, "reason": "Ready to start."}
+    visit_ids  = list({o.visit_id for o in orders})
+    visits_map = {v.id: v for v in (await db.execute(select(Visit).filter(Visit.id.in_(visit_ids)))).scalars()}
+    pat_ids    = list({v.patient_id for v in visits_map.values()})
+    pat_map    = {p.id: p for p in (await db.execute(select(Patient).filter(Patient.id.in_(pat_ids)))).scalars()}
 
-    return {"can_start": False, "reason": f"Unexpected status: {appt.status}."}
+    return [
+        {
+            "id": o.id, "visit_id": o.visit_id,
+            "patient_id":    visits_map[o.visit_id].patient_id,
+            "patient_name":  pat_map.get(visits_map[o.visit_id].patient_id, None) and pat_map[visits_map[o.visit_id].patient_id].name or "Unknown",
+            "test_name":     o.test_name, "clinical_notes": o.clinical_notes,
+            "status":        o.status,   "ordered_at":      o.ordered_at,
+        }
+        for o in orders
+    ]
+
+
+# ── GET /visits/radiology-orders/radiology ────────────────────────────────────
+@router.get("/radiology-orders/radiology")
+async def list_radiology_orders(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """Radiologist view — radiology orders ready for imaging. No N+1 queries."""
+    if current_user.role_id not in (RoleId.SUPER_ADMIN, RoleId.HOSPITAL_ADMIN, RoleId.RADIOLOGIST):
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    res = await db.execute(
+        select(RadiologyOrder).join(Visit, Visit.id == RadiologyOrder.visit_id).filter(
+            Visit.tenant_id == current_user.tenant_id,
+            RadiologyOrder.status == "VISIBLE_TO_RADIOLOGY",
+        ).order_by(RadiologyOrder.ordered_at.desc())
+    )
+    orders = res.scalars().all()
+    if not orders:
+        return []
+
+    visit_ids  = list({o.visit_id for o in orders})
+    visits_map = {v.id: v for v in (await db.execute(select(Visit).filter(Visit.id.in_(visit_ids)))).scalars()}
+    pat_ids    = list({v.patient_id for v in visits_map.values()})
+    pat_map    = {p.id: p for p in (await db.execute(select(Patient).filter(Patient.id.in_(pat_ids)))).scalars()}
+
+    return [
+        {
+            "id": o.id, "visit_id": o.visit_id,
+            "patient_id":          visits_map[o.visit_id].patient_id,
+            "patient_name":        pat_map.get(visits_map[o.visit_id].patient_id, None) and pat_map[visits_map[o.visit_id].patient_id].name or "Unknown",
+            "imaging_type":        o.imaging_type, "body_region": o.body_region,
+            "clinical_indication": o.clinical_indication,
+            "status":              o.status, "ordered_at": o.ordered_at,
+        }
+        for o in orders
+    ]
+
+
+# ── GET /visits/billing/clerk ─────────────────────────────────────────────────
+@router.get("/billing/clerk")
+async def list_billing_items(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """Billing clerk view — consultation charges. No N+1 queries."""
+    if current_user.role_id not in (RoleId.SUPER_ADMIN, RoleId.HOSPITAL_ADMIN, RoleId.BILLING_CLERK):
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    res = await db.execute(
+        select(BillingItem).filter(
+            BillingItem.tenant_id == current_user.tenant_id,
+        ).order_by(BillingItem.created_at.desc())
+    )
+    items = res.scalars().all()
+    if not items:
+        return []
+
+    visit_ids  = list({b.visit_id for b in items})
+    visits_map = {v.id: v for v in (await db.execute(select(Visit).filter(Visit.id.in_(visit_ids)))).scalars()}
+    pat_ids    = list({v.patient_id for v in visits_map.values()})
+    pat_map    = {p.id: p for p in (await db.execute(select(Patient).filter(Patient.id.in_(pat_ids)))).scalars()}
+
+    return [
+        {
+            "id": b.id, "visit_id": b.visit_id,
+            "patient_name": pat_map.get(visits_map[b.visit_id].patient_id, None) and pat_map[visits_map[b.visit_id].patient_id].name or "Unknown",
+            "description":  b.description, "amount": b.amount,
+            "currency":     b.currency,    "status": b.status,
+            "created_at":   b.created_at,
+        }
+        for b in items
+    ]

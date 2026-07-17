@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,8 +9,10 @@ from app.core.database import engine, Base, SessionLocal
 from app.api.v1.api import api_router
 from app.crud.user import get_user_by_email, create_user
 from app.schemas.user import UserCreate
+from app.documents.services.yara_scanner import yara_scanner
 
-# Import newly added models for seeding
+# Import all models to ensure they register on Base.metadata for table creation
+import app.models
 from app.models.tenant import Tenant
 from app.models.permission import Permission
 from app.models.role import Role
@@ -104,6 +107,62 @@ PREDEFINED_PERMISSIONS = [
     ("medicine:dispense", "Dispense medications", "pharmacy"),
     ("medicine:return", "Return dispensed medications", "pharmacy"),
     ("medicine:stock_check", "Check medicine stock levels", "pharmacy"),
+    # Inventory
+    ("inventory:category:create", "Create inventory categories", "inventory"),
+    ("inventory:category:view", "View inventory categories", "inventory"),
+    ("inventory:category:update", "Update inventory categories", "inventory"),
+    ("inventory:unit:create", "Create inventory units", "inventory"),
+    ("inventory:unit:view", "View inventory units", "inventory"),
+    ("inventory:unit:update", "Update inventory units", "inventory"),
+    ("inventory:manufacturer:create", "Create manufacturers", "inventory"),
+    ("inventory:manufacturer:view", "View manufacturers", "inventory"),
+    ("inventory:manufacturer:update", "Update manufacturers", "inventory"),
+    ("inventory:brand:create", "Create brands", "inventory"),
+    ("inventory:brand:view", "View brands", "inventory"),
+    ("inventory:brand:update", "Update brands", "inventory"),
+    ("inventory:supplier:create", "Create suppliers", "inventory"),
+    ("inventory:supplier:view", "View suppliers", "inventory"),
+    ("inventory:supplier:update", "Update suppliers", "inventory"),
+    ("inventory:location:create", "Create storage locations", "inventory"),
+    ("inventory:location:view", "View storage locations", "inventory"),
+    ("inventory:location:update", "Update storage locations", "inventory"),
+    ("inventory:product:create", "Create products", "inventory"),
+    ("inventory:product:view", "View products", "inventory"),
+    ("inventory:product:update", "Update products", "inventory"),
+    ("inventory:product:search", "Search products", "inventory"),
+    ("inventory:product:delete", "Soft-delete products", "inventory"),
+    ("inventory:purchase_order:create", "Create purchase orders", "inventory"),
+    ("inventory:purchase_order:view", "View purchase orders", "inventory"),
+    ("inventory:purchase_order:update", "Update purchase orders", "inventory"),
+    ("inventory:purchase_order:cancel", "Cancel purchase orders", "inventory"),
+    ("inventory:goods_receipt:create", "Create goods receipts", "inventory"),
+    ("inventory:goods_receipt:view", "View goods receipts", "inventory"),
+    ("inventory:requisition:create", "Create purchase requisitions", "inventory"),
+    ("inventory:requisition:view", "View purchase requisitions", "inventory"),
+    ("inventory:requisition:update", "Update purchase requisitions", "inventory"),
+    ("inventory:requisition:approve", "Approve purchase requisitions", "inventory"),
+    ("inventory:requisition:reject", "Reject purchase requisitions", "inventory"),
+    ("inventory:requisition:convert", "Convert approved requisitions to purchase orders", "inventory"),
+    ("inventory:stock:view", "View inventory stock levels", "inventory"),
+    ("inventory:stock:change", "Create stock transactions", "inventory"),
+    ("inventory:ledger:view", "View inventory ledger entries", "inventory"),
+    ("inventory:transfer:create", "Create inventory transfers", "inventory"),
+    ("inventory:transfer:view", "View inventory transfers", "inventory"),
+    ("inventory:transfer:update", "Update inventory transfers", "inventory"),
+    ("inventory:transfer:approve", "Approve inventory transfers", "inventory"),
+    ("inventory:transfer:complete", "Complete inventory transfers", "inventory"),
+    ("inventory:transfer:cancel", "Cancel inventory transfers", "inventory"),
+    ("inventory:adjustment:create", "Create stock adjustments", "inventory"),
+    ("inventory:adjustment:view", "View stock adjustments", "inventory"),
+    ("inventory:adjustment:update", "Update stock adjustments", "inventory"),
+    ("inventory:adjustment:approve", "Approve stock adjustments", "inventory"),
+    ("inventory:adjustment:cancel", "Cancel stock adjustments", "inventory"),
+    ("inventory:reservation:create", "Create stock reservations", "inventory"),
+    ("inventory:reservation:view", "View stock reservations", "inventory"),
+    ("inventory:reservation:change", "Change stock reservations", "inventory"),
+    ("inventory:dashboard:view", "View inventory dashboard metrics", "inventory"),
+    ("inventory:alerts:view", "View inventory alerts", "inventory"),
+    ("inventory:reports:view", "View inventory reports", "inventory"),
     # Billing
     ("invoice:create", "Create billing invoices", "billing"),
     ("invoice:view", "View billing invoices", "billing"),
@@ -113,16 +172,6 @@ PREDEFINED_PERMISSIONS = [
     ("payment:refund", "Issue payment refunds", "billing"),
     ("insurance:claim", "File insurance claims", "billing"),
     ("receipt:print", "Print billing receipts", "billing"),
-    # Inventory
-    ("inventory:view", "View inventory stock list", "inventory"),
-    ("inventory:update", "Update inventory stock counts", "inventory"),
-    ("purchase_order:create", "Create stock purchase orders", "inventory"),
-    ("purchase_order:approve", "Approve stock purchase orders", "inventory"),
-    ("purchase_order:view", "View stock purchase orders", "inventory"),
-    ("goods:receive", "Receive ordered stock goods", "inventory"),
-    ("supplier:view", "View inventory suppliers", "inventory"),
-    ("supplier:create", "Create inventory suppliers", "inventory"),
-    ("supplier:update", "Update inventory suppliers", "inventory"),
     # Reports
     ("report:view", "View hospital reports", "reports"),
     ("report:export", "Export hospital reports", "reports"),
@@ -145,9 +194,16 @@ PREDEFINED_PERMISSIONS = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if os.getenv("TESTING") == "1":
+        yield
+        return
+
     # Create database tables asynchronously on startup
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Compile YARA rules once at startup
+    yara_scanner.initialize()
         
     # Seed default SaaS values
     async with SessionLocal() as db:
@@ -189,7 +245,7 @@ async def lifespan(app: FastAPI):
             (7, "Radiologist", "Radiology reports and image review"),
             (8, "Pharmacist", "Prescription dispensing and medicine stocks"),
             (9, "Billing Clerk", "Invoicing and payment processing"),
-            (10, "Inventory Manager", "Purchase orders and goods receipt"),
+            (10, "Inventory Manager", "Inventory purchasing, receiving, and stock tracking"),
         ]
         
         roles_mapped = {}
@@ -219,7 +275,9 @@ async def lifespan(app: FastAPI):
             "Receptionist": [
                 "patient:create", "patient:view", "patient:update", "patient:search",
                 "appointment:create", "appointment:view", "appointment:update", "appointment:cancel", "appointment:reschedule", "appointment:checkin", "appointment:queue",
-                "dashboard:view", "notification:view"
+                "dashboard:view", "notification:view",
+                # Inventory: view products for appointment/document workflows
+                "inventory:product:view", "inventory:product:search",
             ],
             
             "Doctor": [
@@ -243,6 +301,8 @@ async def lifespan(app: FastAPI):
                 "procedure:perform",
                 "bed:assign", "bed:release",
                 "discharge:prepare",
+                "appointment:view",
+                "consultation:view",
                 "dashboard:view"
             ],
             
@@ -266,7 +326,15 @@ async def lifespan(app: FastAPI):
                 "medicine:dispense",
                 "medicine:return",
                 "medicine:stock_check",
-                "dashboard:view"
+                "dashboard:view",
+                # Inventory: read products, manage reservations, view stock
+                "inventory:product:view", "inventory:product:search",
+                "inventory:stock:view", "inventory:ledger:view",
+                "inventory:reservation:create", "inventory:reservation:view", "inventory:reservation:change",
+                "inventory:requisition:create", "inventory:requisition:view", "inventory:requisition:update",
+                "inventory:purchase_order:view",
+                "inventory:goods_receipt:view",
+                "inventory:dashboard:view", "inventory:alerts:view", "inventory:reports:view",
             ],
             
             "Billing Clerk": [
@@ -276,14 +344,49 @@ async def lifespan(app: FastAPI):
                 "receipt:print",
                 "dashboard:view"
             ],
-            
             "Inventory Manager": [
-                "inventory:view",
-                "inventory:update",
-                "purchase_order:create", "purchase_order:view", "purchase_order:approve",
-                "goods:receive",
-                "supplier:view", "supplier:create", "supplier:update",
-                "dashboard:view"
+                "inventory:category:view",
+                "inventory:unit:view",
+                "inventory:manufacturer:view",
+                "inventory:brand:view",
+                "inventory:supplier:create",
+                "inventory:supplier:view",
+                "inventory:supplier:update",
+                "inventory:location:view",
+                "inventory:product:view",
+                "inventory:product:search",
+                "inventory:purchase_order:create",
+                "inventory:purchase_order:view",
+                "inventory:purchase_order:update",
+                "inventory:purchase_order:cancel",
+                "inventory:goods_receipt:create",
+                "inventory:goods_receipt:view",
+                "inventory:requisition:create",
+                "inventory:requisition:view",
+                "inventory:requisition:update",
+                "inventory:requisition:approve",
+                "inventory:requisition:reject",
+                "inventory:requisition:convert",
+                "inventory:stock:view",
+                "inventory:stock:change",
+                "inventory:ledger:view",
+                "inventory:transfer:create",
+                "inventory:transfer:view",
+                "inventory:transfer:update",
+                "inventory:transfer:approve",
+                "inventory:transfer:complete",
+                "inventory:transfer:cancel",
+                "inventory:adjustment:create",
+                "inventory:adjustment:view",
+                "inventory:adjustment:update",
+                "inventory:adjustment:approve",
+                "inventory:adjustment:cancel",
+                "inventory:reservation:create",
+                "inventory:reservation:view",
+                "inventory:reservation:change",
+                "inventory:dashboard:view",
+                "inventory:alerts:view",
+                "inventory:reports:view"
             ]
         }
 
@@ -409,3 +512,5 @@ def root():
         "docs": "/docs",
         "status": "healthy"
     }
+
+

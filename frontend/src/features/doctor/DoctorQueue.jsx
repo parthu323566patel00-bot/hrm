@@ -310,34 +310,26 @@ function AppointmentRow({ appt, acting, onStatusChange, onOpenChart, showActions
 
       {/* Actions */}
       <div style={{ display:'flex', flexDirection:'column', gap:'6px', flexShrink:0 }}>
-        {showActions && canStart && (
-          <button onClick={() => onStatusChange(appt.id, 'in_progress')}
-            disabled={acting}
+
+        {/* Open Chart — primary CTA for checked_in and in_progress */}
+        {canOpen && showActions && (
+          <button
+            onClick={() => onOpenChart?.()}
             style={{
               display:'flex', alignItems:'center', gap:'5px',
               padding:'7px 14px', borderRadius:'8px',
-              background:'linear-gradient(135deg,#3b82f6,#1d4ed8)',
+              background: canStart
+                ? 'linear-gradient(135deg,#3b82f6,#1d4ed8)'
+                : 'linear-gradient(135deg,#8b5cf6,#6d28d9)',
               border:'none', color:'#fff', fontSize:'12px', fontWeight:700,
-              cursor: acting ? 'not-allowed' : 'pointer',
-              opacity: acting ? 0.7 : 1, whiteSpace:'nowrap',
-            }}>
-            <PlayCircle size={13}/> {acting ? '…' : 'Start'}
+              cursor:'pointer', whiteSpace:'nowrap',
+            }}
+          >
+            <ClipboardList size={13}/>
+            {canStart ? 'Open Chart' : 'Resume Chart'}
           </button>
         )}
-        {showActions && canComplete && (
-          <button onClick={() => onStatusChange(appt.id, 'completed')}
-            disabled={acting}
-            style={{
-              display:'flex', alignItems:'center', gap:'5px',
-              padding:'7px 14px', borderRadius:'8px',
-              background:'linear-gradient(135deg,#10b981,#059669)',
-              border:'none', color:'#fff', fontSize:'12px', fontWeight:700,
-              cursor: acting ? 'not-allowed' : 'pointer',
-              opacity: acting ? 0.7 : 1, whiteSpace:'nowrap',
-            }}>
-            <CheckCircle2 size={13}/> {acting ? '…' : 'Complete'}
-          </button>
-        )}
+
         {appt.status === 'completed' && (
           <span style={{ fontSize:'12px', color:'#065f46', fontWeight:700,
             display:'flex', alignItems:'center', gap:'4px' }}>
@@ -347,6 +339,11 @@ function AppointmentRow({ appt, acting, onStatusChange, onOpenChart, showActions
         {appt.status === 'scheduled' && showActions && (
           <span style={{ fontSize:'11px', color:'#94a3b8', fontWeight:500 }}>
             Awaiting check-in
+          </span>
+        )}
+        {cancelled && (
+          <span style={{ fontSize:'11px', color:'#94a3b8', fontWeight:500 }}>
+            Cancelled
           </span>
         )}
       </div>

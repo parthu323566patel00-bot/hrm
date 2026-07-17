@@ -11,4 +11,4 @@ class MedicalRecordVersion(Base):
     snapshot          = Column(Text, nullable=False)   # JSON snapshot of prior state
     amended_by        = Column(Integer, ForeignKey("users.id"), nullable=False)
     amendment_reason  = Column(String(500), nullable=False)
-    amended_at        = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    amended_at        = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)

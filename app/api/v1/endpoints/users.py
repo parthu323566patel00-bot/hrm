@@ -18,6 +18,7 @@ from sqlalchemy.future import select
 
 from app.api.deps import get_current_user          # ← shared dependency
 from app.core.auth_utils import has_permission
+from app.core.constants.roles import RoleId
 from app.core.database import get_db
 from app.models.department import Department
 from app.models.invitation import Invitation
@@ -79,7 +80,8 @@ async def create_user_invite(
 
     # 3. Create invitation record (no department — doctor picks it themselves)
     token_str = uuid.uuid4().hex
-    expiry = datetime.now(timezone.utc) + timedelta(days=2)
+    now    = datetime.utcnow()                        # naive UTC — PostgreSQL TIMESTAMP WITHOUT TIME ZONE
+    expiry = now + timedelta(days=2)
 
     invitation = Invitation(
         tenant_id=current_user.tenant_id,
@@ -178,8 +180,8 @@ async def update_my_departments(
     Replace the current doctor's department memberships.
     Accepts a list of department IDs. Only available to users with role Doctor (id=4).
     """
-    # Doctor-only guard (role_id 4)
-    if current_user.role_id != 4:
+    # Doctor-only guard
+    if current_user.role_id != RoleId.DOCTOR:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only doctors can manage department memberships.",
@@ -240,7 +242,7 @@ async def get_my_departments(
     current_user: User = Depends(get_current_user),
 ) -> Any:
     """Return the current doctor's department memberships."""
-    if current_user.role_id != 4:
+    if current_user.role_id != RoleId.DOCTOR:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only doctors have department memberships.",

@@ -12,4 +12,4 @@ class LabOrder(Base):
     clinical_notes = Column(Text, nullable=True)
     status         = Column(String(30), default="PENDING", nullable=False)
     ordered_by     = Column(Integer, ForeignKey("users.id"), nullable=False)
-    ordered_at     = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    ordered_at     = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)

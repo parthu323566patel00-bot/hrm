@@ -1,0 +1,62 @@
+[
+  {
+    "table": "inventory_audit",
+    "schema": "public",
+    "rows": 0,
+    "csv": null
+  },
+  {
+    "table": "inventory_batches",
+    "schema": "public",
+    "rows": 0,
+    "csv": null
+  },
+  {
+    "table": "inventory_goods_receipt_items",
+    "schema": "public",
+    "rows": 0,
+    "csv": null
+  },
+  {
+    "table": "inventory_goods_receipts",
+    "schema": "public",
+    "rows": 0,
+    "csv": null
+  },
+  {
+    "table": "inventory_ledger",
+    "schema": "public",
+    "rows": 0,
+    "csv": null
+  },
+  {
+    "table": "inventory_locations",
+    "schema": "public",
+    "rows": 0,
+    "csv": null
+  },
+  {
+    "table": "inventory_products",
+    "schema": "public",
+    "rows": 0,
+    "csv": null
+  },
+  {
+    "table": "inventory_purchase_order_items",
+    "schema": "public",
+    "rows": 0,
+    "csv": null
+  },
+  {
+    "table": "inventory_purchase_orders",
+    "schema": "public",
+    "rows": 0,
+    "csv": null
+  },
+  {
+    "table": "inventory_suppliers",
+    "schema": "public",
+    "rows": 0,
+    "csv": null
+  }
+]

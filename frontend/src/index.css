@@ -676,6 +676,134 @@ body {
   gap: 8px;
 }
 
+.inventory-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.inventory-card {
+  padding: 20px;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+}
+
+.inventory-card h4 {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  margin-bottom: 8px;
+}
+
+.inventory-card .value {
+  font-size: 28px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.inventory-card .meta {
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.inventory-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.inventory-filters .form-group {
+  margin-bottom: 0;
+}
+
+.inventory-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+}
+
+.inventory-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.inventory-section-title h3 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.inventory-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 780px;
+}
+
+.inventory-table th,
+.inventory-table td {
+  padding: 14px 16px;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.inventory-table th {
+  font-size: 12px;
+  letter-spacing: 0.45px;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.inventory-table tbody tr:hover {
+  background: #f8fbff;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.status-pill-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-pill-partially_received {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-pill-completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-pill-cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.inventory-summary-empty {
+  color: #64748b;
+  font-size: 13px;
+}
+
 .panel-header h3 svg {
   color: var(--color-primary);
 }

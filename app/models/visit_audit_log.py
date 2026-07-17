@@ -15,4 +15,4 @@ class VisitAuditLog(Base):
     appointment_id = Column(Integer, nullable=True)
     ip_address     = Column(String(45), nullable=True)
     metadata_json  = Column(Text, nullable=True)
-    created_at     = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at     = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)

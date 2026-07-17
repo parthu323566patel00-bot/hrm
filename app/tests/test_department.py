@@ -13,12 +13,19 @@ def encrypt_password(password: str) -> str:
 
 def test_list_departments(client: TestClient, db):
     # 0. Seed basic setup
+    from sqlalchemy import delete
     from app.models.role import Role
     from app.models.department import Department
+    from app.models.user import User
     from app.crud.user import create_user
     from app.schemas.user import UserCreate
     
     async def seed_test_data():
+        await db.execute(delete(User).where(User.tenant_id == "default-hospital"))
+        await db.execute(delete(Department).where(Department.tenant_id == "default-hospital"))
+        await db.execute(delete(Role).where(Role.tenant_id == "default-hospital"))
+        await db.commit()
+
         role = Role(id=1, tenant_id="default-hospital", name="Super Admin", description="System Admin")
         db.add(role)
         
@@ -63,12 +70,25 @@ def test_list_departments(client: TestClient, db):
 
 
 def test_update_profile_department(client: TestClient, db):
+    from sqlalchemy import delete
     from app.models.role import Role
     from app.models.department import Department
+    from app.models.tenant import Tenant
+    from app.models.user import User
     from app.crud.user import create_user
     from app.schemas.user import UserCreate
-    
+
     async def seed_test_data():
+        await db.execute(delete(User).where(User.tenant_id == "default-hospital-2"))
+        await db.execute(delete(Department).where(Department.tenant_id == "default-hospital-2"))
+        await db.execute(delete(Role).where(Role.tenant_id == "default-hospital-2"))
+        await db.execute(delete(Tenant).where(Tenant.id == "default-hospital-2"))
+        await db.commit()
+
+        tenant = Tenant(id="default-hospital-2", name="Secondary Test Hospital")
+        db.add(tenant)
+        await db.flush()
+
         role = Role(id=4, tenant_id="default-hospital-2", name="Doctor", description="Clinician")
         db.add(role)
         
@@ -81,7 +101,7 @@ def test_update_profile_department(client: TestClient, db):
         doctor_in = UserCreate(
             email="doctor2@medicore.com",
             tenant_id="default-hospital-2",
-            role_id=4,
+            role_id=2,
             password="doctorpassword123",
             full_name="Doctor Strange",
             is_superuser=False,
@@ -108,11 +128,11 @@ def test_update_profile_department(client: TestClient, db):
     depts = dept_res.json()
     card_dept = [d for d in depts if d["code"] == "CARD2"][0]
 
-    # 3. Update department
-    update_payload = {
-        "department_id": card_dept["id"]
-    }
-    update_res = client.put("/api/v1/users/me", json=update_payload, headers=headers)
+    # 3. Update department memberships for the doctor
+    update_payload = [card_dept["id"]]
+    update_res = client.put("/api/v1/users/me/departments", json=update_payload, headers=headers)
     assert update_res.status_code == status.HTTP_200_OK
-    assert update_res.json()["department_id"] == card_dept["id"]
+    response_data = update_res.json()
+    assert response_data["message"] == "Department memberships updated."
+    assert any(d["id"] == card_dept["id"] for d in response_data["departments"])
 

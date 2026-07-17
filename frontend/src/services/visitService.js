@@ -18,7 +18,7 @@ async function apiFetchRaw(path, opts = {}, token = null) {
 
 /** Check if Start Consultation button should be enabled for an appointment */
 export function canStartConsultation(token, appointmentId) {
-  return apiFetch(`/visits/${appointmentId}/can-start`, {}, token);
+  return apiFetch(`/visits/can-start?appointment_id=${appointmentId}`, {}, token);
 }
 
 /** Atomically start a consultation — creates Visit + MedicalRecord + AuditLog */
@@ -101,4 +101,24 @@ export function completeConsultation(token, visitId) {
 /** Get audit log for a visit */
 export function getAuditLog(token, visitId) {
   return apiFetch(`/visits/${visitId}/audit-log`, {}, token);
+}
+
+/** Pharmacist — prescriptions available for dispensing */
+export function getPharmacyPrescriptions(token) {
+  return apiFetch('/visits/prescriptions/pharmacy', {}, token);
+}
+
+/** Lab technician — lab orders ready for processing */
+export function getLaboratoryOrders(token) {
+  return apiFetch('/visits/lab-orders/laboratory', {}, token);
+}
+
+/** Radiologist — radiology orders ready for imaging */
+export function getRadiologyOrders(token) {
+  return apiFetch('/visits/radiology-orders/radiology', {}, token);
+}
+
+/** Billing clerk — consultation charges */
+export function getBillingItems(token) {
+  return apiFetch('/visits/billing/clerk', {}, token);
 }

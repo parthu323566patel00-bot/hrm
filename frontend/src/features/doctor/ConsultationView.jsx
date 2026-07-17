@@ -14,15 +14,17 @@ import PrescriptionForm from './PrescriptionForm';
 import LabOrderForm from './LabOrderForm';
 import RadiologyOrderForm from './RadiologyOrderForm';
 import AttachmentsView from './AttachmentsView';
+import PatientDocumentsPanel from '../documents/PatientDocumentsPanel';
 
 const TABS = [
-  { key: 'vitals',     label: 'Vitals',     Icon: Activity     },
-  { key: 'notes',      label: 'Notes',      Icon: FileText     },
-  { key: 'diagnosis',  label: 'Diagnosis',  Icon: Stethoscope  },
-  { key: 'rx',         label: 'Prescriptions', Icon: Pill      },
-  { key: 'lab',        label: 'Lab Orders', Icon: FlaskConical },
-  { key: 'radiology',  label: 'Radiology',  Icon: Scan         },
-  { key: 'files',      label: 'Files',      Icon: Paperclip    },
+  { key: 'vitals',     label: 'Vitals',       Icon: Activity     },
+  { key: 'notes',      label: 'Notes',        Icon: FileText     },
+  { key: 'diagnosis',  label: 'Diagnosis',    Icon: Stethoscope  },
+  { key: 'rx',         label: 'Prescriptions',Icon: Pill         },
+  { key: 'lab',        label: 'Lab Orders',   Icon: FlaskConical },
+  { key: 'radiology',  label: 'Radiology',    Icon: Scan         },
+  { key: 'files',      label: 'Attachments',  Icon: Paperclip    },
+  { key: 'documents',  label: 'Documents',    Icon: FileText     },
 ];
 
 export default function ConsultationView({ visit, token, activeTab, onTabChange, onDataSaved }) {
@@ -32,14 +34,21 @@ export default function ConsultationView({ visit, token, activeTab, onTabChange,
   const renderTab = () => {
     const props = { visit, token, onSaved: onDataSaved, readOnly: isDone };
     switch (activeTab) {
-      case 'vitals':    return <VitalsForm      {...props} />;
+      case 'vitals':    return <VitalsForm        {...props} />;
       case 'notes':     return <ClinicalNotesForm {...props} />;
-      case 'diagnosis': return <DiagnosisForm   {...props} />;
-      case 'rx':        return <PrescriptionForm {...props} />;
-      case 'lab':       return <LabOrderForm     {...props} />;
+      case 'diagnosis': return <DiagnosisForm     {...props} />;
+      case 'rx':        return <PrescriptionForm  {...props} />;
+      case 'lab':       return <LabOrderForm       {...props} />;
       case 'radiology': return <RadiologyOrderForm {...props} />;
-      case 'files':     return <AttachmentsView  {...props} />;
-      default:          return null;
+      case 'files':     return <AttachmentsView    {...props} />;
+      case 'documents': return (
+        <PatientDocumentsPanel
+          token={token}
+          patientId={visit.patient_id}
+          visitId={visit.id}
+        />
+      );
+      default: return null;
     }
   };
 

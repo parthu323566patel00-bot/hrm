@@ -16,4 +16,4 @@ class Prescription(Base):
     instructions    = Column(Text, nullable=True)
     status          = Column(String(30), default="DRAFT", nullable=False)
     prescribed_by   = Column(Integer, ForeignKey("users.id"), nullable=False)
-    prescribed_at   = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    prescribed_at   = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)

@@ -22,7 +22,6 @@ import {
   Phone, Mail, MapPin, Droplets, FileText,
 } from 'lucide-react';
 import { listPatients, createPatient } from '../../services/patientService';
-import { apiFetch } from '../../services/api';
 import {
   fetchDoctorsByDept, fetchAllDoctors,
   fetchSlots, bookAppointment,
@@ -58,7 +57,7 @@ function getNext14Days() {
   return arr;
 }
 
-export default function BookAppointmentModal({ token, onClose, onBooked }) {
+export default function BookAppointmentModal({ token, departments: departmentsProp = [], onClose, onBooked }) {
   const [step, setStep] = useState(1); // 1=patient, 2=dept+doctor, 3=date+time, 4=notes+upload
 
   // Step 1: patient search
@@ -74,7 +73,8 @@ export default function BookAppointmentModal({ token, onClose, onBooked }) {
   const [addPatientError, setAddPatientError] = useState('');
 
   // Step 2: department + doctor
-  const [departments, setDepartments]         = useState([]);
+  // departments are passed as a prop from the parent page (already fetched once)
+  const departments                           = departmentsProp;
   const [selectedDept, setSelectedDept]       = useState(null);
   const [deptDoctors, setDeptDoctors]         = useState([]);
   const [showAllDoctors, setShowAllDoctors]   = useState(false);
@@ -105,21 +105,15 @@ export default function BookAppointmentModal({ token, onClose, onBooked }) {
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
 
-  // Load departments once
-  useEffect(() => {
-    apiFetch('/departments/', {}, token)
-      .then(setDepartments)
-      .catch(() => {});
-  }, [token]);
-
   // Debounced patient search
   useEffect(() => {
     if (!patientQuery.trim()) { setPatients([]); return; }
+    if (!token) { setPatients([]); return; }
     const t = setTimeout(async () => {
       setLoadingPatients(true);
       try {
-        const data = await listPatients(token, patientQuery);
-        setPatients(data);
+        const res = await listPatients(token, patientQuery);
+        setPatients(res.data);
       } catch (_) {}
       finally { setLoadingPatients(false); }
     }, 350);
@@ -129,6 +123,7 @@ export default function BookAppointmentModal({ token, onClose, onBooked }) {
   // Load doctors when department selected
   useEffect(() => {
     if (!selectedDept) { setDeptDoctors([]); return; }
+    if (!token) { setDeptDoctors([]); return; }
     setLoadingDoctors(true);
     setShowAllDoctors(false);
     setSelectedDoctor(null);
@@ -141,6 +136,7 @@ export default function BookAppointmentModal({ token, onClose, onBooked }) {
   // Load slots when doctor + date chosen
   useEffect(() => {
     if (!selectedDoctor || !selectedDate) { setSlots([]); return; }
+    if (!token) { setSlots([]); return; }
     setLoadingSlots(true);
     setSelectedSlot('');
     fetchSlots(token, selectedDoctor.id, selectedDate)
@@ -150,6 +146,9 @@ export default function BookAppointmentModal({ token, onClose, onBooked }) {
   }, [selectedDoctor, selectedDate, token]);
 
   const loadAllDoctors = async () => {
+    if (!token) {
+      return;
+    }
     setLoadingDoctors(true);
     try {
       const data = await fetchAllDoctors(token);
@@ -167,6 +166,9 @@ export default function BookAppointmentModal({ token, onClose, onBooked }) {
   const handleAddPatient = async (e) => {
     e.preventDefault();
     setAddPatientError('');
+    if (!token) {
+      return setAddPatientError('Authentication required. Please log in.');
+    }
     if (!newPatient.name.trim())  return setAddPatientError('Full name is required.');
     if (!newPatient.age)          return setAddPatientError('Age is required.');
     if (!newPatient.phone.trim()) return setAddPatientError('Phone number is required.');
@@ -228,6 +230,10 @@ export default function BookAppointmentModal({ token, onClose, onBooked }) {
   const removeFile = (name) => setFiles(f => f.filter(x => x.name !== name));
 
   const handleBook = async () => {
+    if (!token) {
+      setErrorMsg('Authentication required. Please log in.');
+      return;
+    }
     setErrorMsg('');
     setBooking(true);
     try {

@@ -34,12 +34,24 @@ export function AuthProvider({ children }) {
   }, []);
 
   // -------------------------------------------------------------------------
-  // Load public key once on mount (with retry built into authService)
+  // Load public key — cached in sessionStorage for the session lifetime.
+  // -------------------------------------------------------------------------
+  // Load public key.
+  // Always fetches from server and compares against sessionStorage.
+  // If the server key changed (e.g. backend restart), the cache is busted.
   // -------------------------------------------------------------------------
   const loadPublicKey = useCallback(async () => {
     try {
-      const pem = await fetchPublicKey(3);
-      setPublicKey(pem);
+      const freshPem = await fetchPublicKey(3);
+      const cached   = sessionStorage.getItem('__pk');
+
+      // If server key differs from cached key, bust the cache
+      if (cached && cached !== freshPem) {
+        sessionStorage.removeItem('__pk');
+      }
+
+      sessionStorage.setItem('__pk', freshPem);
+      setPublicKey(freshPem);
       setErrorMsg('');
     } catch (err) {
       setErrorMsg(err.message);
@@ -47,15 +59,23 @@ export function AuthProvider({ children }) {
   }, []);
 
   // -------------------------------------------------------------------------
-  // Restore session from localStorage
+  // Restore session from localStorage — uses sessionStorage profile cache
+  // to avoid a network call on every page refresh.
   // -------------------------------------------------------------------------
   const restoreSession = useCallback(async (savedToken) => {
     try {
+      const cached = sessionStorage.getItem('__profile');
+      if (cached) {
+        setUserProfile(JSON.parse(cached));
+        return;
+      }
       const profile = await fetchUserProfile(savedToken);
+      sessionStorage.setItem('__profile', JSON.stringify(profile));
       setUserProfile(profile);
     } catch {
-      // Token expired or invalid — clear it
+      // Token expired or invalid — clear everything
       localStorage.removeItem('token');
+      sessionStorage.removeItem('__profile');
       setToken('');
       setUserProfile(null);
     }
@@ -73,12 +93,23 @@ export function AuthProvider({ children }) {
   // encrypt a plaintext password with the loaded RSA public key
   // -------------------------------------------------------------------------
   const encryptPassword = useCallback((plaintext) => {
-    if (!publicKey) throw new Error('Cryptographic setup not ready. Public key not found.');
-    const encryptor = new JSEncrypt();
-    encryptor.setPublicKey(publicKey);
-    const encrypted = encryptor.encrypt(plaintext);
-    if (!encrypted) throw new Error('Password encryption failed.');
-    return encrypted;
+    if (!publicKey) {
+      throw new Error('Cryptographic setup not ready. Public key not found. Try refreshing the page.');
+    }
+    try {
+      const encryptor = new JSEncrypt();
+      if (!encryptor) {
+        throw new Error('Encryption library not available. Please refresh the page.');
+      }
+      encryptor.setPublicKey(publicKey);
+      const encrypted = encryptor.encrypt(plaintext);
+      if (!encrypted || encrypted === false) {
+        throw new Error('Password encryption failed. The key may be invalid.');
+      }
+      return encrypted;
+    } catch (err) {
+      throw new Error(`Encryption error: ${err.message}`);
+    }
   }, [publicKey]);
 
   // -------------------------------------------------------------------------
@@ -95,14 +126,19 @@ export function AuthProvider({ children }) {
       setToken(data.access_token);
 
       const profile = await fetchUserProfile(data.access_token);
+      sessionStorage.setItem('__profile', JSON.stringify(profile));
       setUserProfile(profile);
       setSuccessMsg('Welcome Back! Redirecting...');
     } catch (err) {
+      // Bust cached public key on auth failure — server may have rotated it
+      sessionStorage.removeItem('__pk');
+      setPublicKey('');
+      loadPublicKey();
       setErrorMsg(err.message || 'An error occurred.');
     } finally {
       setLoading(false);
     }
-  }, [encryptPassword, clearMessages]);
+  }, [encryptPassword, clearMessages, loadPublicKey]);
 
   // -------------------------------------------------------------------------
   // Update Profile action
@@ -112,6 +148,7 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       const updatedProfile = await updateUserProfile(token, updateData);
+      sessionStorage.setItem('__profile', JSON.stringify(updatedProfile));
       setUserProfile(updatedProfile);
       setSuccessMsg('Profile updated successfully!');
       setTimeout(() => clearMessages(), 3000);
@@ -129,8 +166,11 @@ export function AuthProvider({ children }) {
   // -------------------------------------------------------------------------
   const logout = useCallback(() => {
     localStorage.removeItem('token');
+    sessionStorage.removeItem('__profile');
+    sessionStorage.removeItem('__pk');
     setToken('');
     setUserProfile(null);
+    setPublicKey('');
     clearMessages();
   }, [clearMessages]);
 

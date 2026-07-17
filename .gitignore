@@ -34,20 +34,25 @@ pytest_cache/
 .dmypy.json
 dmypy.json
 
-# ── Secrets & Keys ─────────────────────────────────────────────────────────────
+# ── Secrets & Keys (never commit these) ───────────────────────────────────────
 .env
 private_key.pem
 public_key.pem
 
-# ── Database ───────────────────────────────────────────────────────────────────
+# ── Database files ─────────────────────────────────────────────────────────────
 *.db
 *.sqlite
 *.sqlite3
 
-# ── Uploaded files ─────────────────────────────────────────────────────────────
-uploads/
+# ── Backup directory ───────────────────────────────────────────────────────────
+backup/
 
-# ── Frontend ───────────────────────────────────────────────────────────────────
+# ── Uploaded files & generated content ────────────────────────────────────────
+uploads/
+logs/
+*.log
+
+# ── Frontend build artifacts ───────────────────────────────────────────────────
 frontend/node_modules/
 frontend/dist/
 frontend/.env
@@ -63,12 +68,28 @@ frontend/.env.*.local
 Thumbs.db
 desktop.ini
 
-# ── Kiro / tooling ─────────────────────────────────────────────────────────────
+# ── Kiro internal tooling ──────────────────────────────────────────────────────
 .qodo/
 .agents/
 
-# ── Misc ───────────────────────────────────────────────────────────────────────
-*.log
+# ── Scratch / temp files ───────────────────────────────────────────────────────
+scratch/
 *.tmp
 *.bak
 *.orig
+
+# ── One-off migration scripts (already run, not needed in repo) ───────────────
+migrate_sqlite_to_postgres.py
+check_perms.py
+add_doctor_dept_trigger.py
+fix_datetime.py
+inspect_db.py
+
+# ── Internal planning docs that add noise ──────────────────────────────────────
+ARCHITECTURE_COMPARISON.md
+DELIVERY_SUMMARY.md
+IMPLEMENTATION_GUIDE.md
+IMPLEMENTATION_INDEX.md
+OPTIMIZATION_SUMMARY.md
+PERFORMANCE_OPTIMIZATION_PLAN.md
+QUICK_REFERENCE.md

@@ -55,6 +55,12 @@ export default function TodaysAppointments({ token, refreshKey }) {
   });
 
   const load = useCallback(async () => {
+    // Guard: don't call API if token is missing
+    if (!token) {
+      setErrorMsg('Authentication required. Please log in.');
+      return;
+    }
+    
     setLoading(true);
     setErrorMsg('');
     try {
@@ -70,6 +76,10 @@ export default function TodaysAppointments({ token, refreshKey }) {
   useEffect(() => { load(); }, [load, refreshKey]);
 
   const handleCheckIn = async (id) => {
+    if (!token) {
+      setErrorMsg('Authentication required. Please log in.');
+      return;
+    }
     setActingId(id);
     setSuccessMsg('');
     setErrorMsg('');
@@ -87,6 +97,10 @@ export default function TodaysAppointments({ token, refreshKey }) {
   };
 
   const handleCancel = async (id) => {
+    if (!token) {
+      setErrorMsg('Authentication required. Please log in.');
+      return;
+    }
     if (!window.confirm('Cancel this appointment?')) return;
     setActingId(id);
     setSuccessMsg('');

@@ -29,7 +29,8 @@ class VitalsCreate(BaseModel):
 
 class VitalsOut(VitalsCreate):
     id: int
-    visit_id: int
+    visit_id: Optional[int]
+    appointment_id: Optional[int] = None
     recorded_by: int
     recorded_at: datetime
 

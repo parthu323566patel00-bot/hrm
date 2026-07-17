@@ -2,19 +2,23 @@
  * features/receptionist/PatientsList.jsx
  * ----------------------------------------
  * Searchable, paginated list of registered patients (7 per page).
- * Clicking a patient name opens PatientDetailModal (view + edit).
+ *
+ * Optimisations applied:
+ *  - Single API call per load (data + meta in one response — no /count)
+ *  - Deduped useEffect: debounced search skips the initial mount render
+ *  - Clicking a patient name opens PatientDetailModal (view + edit)
  *
  * Props:
  *   token      - JWT bearer token
  *   refreshKey - Increment to re-fetch after a new registration
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Search, Users, Droplets, Phone,
   User, Calendar, ChevronLeft, ChevronRight,
 } from 'lucide-react';
-import { listPatients, countPatients } from '../../services/patientService';
+import { listPatients } from '../../services/patientService';
 import PatientDetailModal from './PatientDetailModal';
 import Alert from '../../components/ui/Alert';
 
@@ -33,19 +37,18 @@ const GENDER_COLORS = {
   Other:  { bg: '#f3f4f6', color: '#374151' },
 };
 
-/* ── Pagination bar ────────────────────────────────────────────────────────── */
+/* ── Pagination bar ──────────────────────────────────────────────────────── */
 function Pagination({ page, totalPages, onPrev, onNext, onGo }) {
   if (totalPages <= 1) return null;
 
-  // Build page number buttons — show at most 5 around current
   const pages = [];
   const delta = 2;
   const left  = Math.max(1, page - delta);
   const right = Math.min(totalPages, page + delta);
 
-  if (left > 1)          { pages.push(1); if (left > 2) pages.push('…'); }
+  if (left > 1)           { pages.push(1); if (left > 2) pages.push('…'); }
   for (let i = left; i <= right; i++) pages.push(i);
-  if (right < totalPages){ if (right < totalPages - 1) pages.push('…'); pages.push(totalPages); }
+  if (right < totalPages) { if (right < totalPages - 1) pages.push('…'); pages.push(totalPages); }
 
   const btnBase = {
     minWidth: '32px', height: '32px', borderRadius: '8px',
@@ -61,68 +64,62 @@ function Pagination({ page, totalPages, onPrev, onNext, onGo }) {
       gap: '4px', paddingTop: '16px', borderTop: '1px solid #f1f5f9',
       marginTop: '12px',
     }}>
-      {/* Prev */}
-      <button
-        onClick={onPrev} disabled={page === 1}
-        style={{ ...btnBase, opacity: page === 1 ? 0.4 : 1, padding: '0 8px' }}
-      >
+      <button onClick={onPrev} disabled={page === 1}
+        style={{ ...btnBase, opacity: page === 1 ? 0.4 : 1, padding: '0 8px' }}>
         <ChevronLeft size={14} />
       </button>
 
-      {/* Page numbers */}
       {pages.map((p, i) =>
         p === '…' ? (
-          <span key={`ellipsis-${i}`} style={{ color: '#94a3b8', fontSize: '12px', padding: '0 4px' }}>…</span>
+          <span key={`e${i}`} style={{ color: '#94a3b8', fontSize: '12px', padding: '0 4px' }}>…</span>
         ) : (
-          <button
-            key={p}
-            onClick={() => onGo(p)}
+          <button key={p} onClick={() => onGo(p)}
             style={{
               ...btnBase,
-              background: p === page ? 'var(--color-primary)' : '#fff',
-              color:      p === page ? '#fff' : '#475569',
+              background:  p === page ? 'var(--color-primary)' : '#fff',
+              color:       p === page ? '#fff' : '#475569',
               borderColor: p === page ? 'var(--color-primary)' : '#e2e8f0',
-            }}
-          >
+            }}>
             {p}
           </button>
         )
       )}
 
-      {/* Next */}
-      <button
-        onClick={onNext} disabled={page === totalPages}
-        style={{ ...btnBase, opacity: page === totalPages ? 0.4 : 1, padding: '0 8px' }}
-      >
+      <button onClick={onNext} disabled={page === totalPages}
+        style={{ ...btnBase, opacity: page === totalPages ? 0.4 : 1, padding: '0 8px' }}>
         <ChevronRight size={14} />
       </button>
     </div>
   );
 }
 
-/* ── Main component ─────────────────────────────────────────────────────────── */
+/* ── Main component ─────────────────────────────────────────────────────── */
 export default function PatientsList({ token, refreshKey }) {
-  const [patients, setPatients]             = useState([]);
-  const [total, setTotal]                   = useState(0);
-  const [query, setQuery]                   = useState('');
-  const [page, setPage]                     = useState(1);
-  const [loading, setLoading]               = useState(false);
-  const [errorMsg, setErrorMsg]             = useState('');
+  const [patients, setPatients]           = useState([]);
+  const [meta, setMeta]                   = useState({ page: 1, page_size: PAGE_SIZE, total: 0, total_pages: 1 });
+  const [query, setQuery]                 = useState('');
+  const [page, setPage]                   = useState(1);
+  const [loading, setLoading]             = useState(false);
+  const [errorMsg, setErrorMsg]           = useState('');
   const [selectedPatient, setSelectedPatient] = useState(null);
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // Tracks whether the component has mounted — prevents debounce from
+  // firing a duplicate load on the very first render.
+  const isFirstRender = useRef(true);
 
   const load = useCallback(async (q, pg) => {
+    // Guard: don't call API if token is missing
+    if (!token) {
+      setErrorMsg('Authentication required. Please log in.');
+      return;
+    }
+    
     setLoading(true);
     setErrorMsg('');
     try {
-      const skip = (pg - 1) * PAGE_SIZE;
-      const [data, countData] = await Promise.all([
-        listPatients(token, q, skip, PAGE_SIZE),
-        countPatients(token, q),
-      ]);
-      setPatients(data);
-      setTotal(countData.total);
+      const res = await listPatients(token, q, pg, PAGE_SIZE);
+      setPatients(res.data);
+      setMeta(res.meta);
     } catch (err) {
       setErrorMsg(err.message || 'Failed to load patients.');
     } finally {
@@ -130,14 +127,17 @@ export default function PatientsList({ token, refreshKey }) {
     }
   }, [token]);
 
-  // Reload on new registration (go back to page 1)
+  // Initial load + reload when a new patient is registered (refreshKey bump)
   useEffect(() => {
     setPage(1);
-    load(query, 1);
+    setQuery('');
+    load('', 1);
+    isFirstRender.current = false;
   }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Debounced search — reset to page 1
+  // Debounced search — skips the initial render to avoid a duplicate call
   useEffect(() => {
+    if (isFirstRender.current) return;
     const t = setTimeout(() => {
       setPage(1);
       load(query, 1);
@@ -145,7 +145,6 @@ export default function PatientsList({ token, refreshKey }) {
     return () => clearTimeout(t);
   }, [query, load]);
 
-  // Page change
   const goTo = (pg) => {
     setPage(pg);
     load(query, pg);
@@ -156,8 +155,8 @@ export default function PatientsList({ token, refreshKey }) {
     setSelectedPatient(updated);
   };
 
-  const start = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const end   = Math.min(page * PAGE_SIZE, total);
+  const start = meta.total === 0 ? 0 : (meta.page - 1) * meta.page_size + 1;
+  const end   = Math.min(meta.page * meta.page_size, meta.total);
 
   return (
     <>
@@ -167,7 +166,7 @@ export default function PatientsList({ token, refreshKey }) {
         <div className="panel-header">
           <h3><Users size={18} /> Registered Patients</h3>
           <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
-            {total} record{total !== 1 ? 's' : ''}
+            {meta.total} record{meta.total !== 1 ? 's' : ''}
           </span>
         </div>
 
@@ -196,12 +195,10 @@ export default function PatientsList({ token, refreshKey }) {
           </p>
         ) : (
           <>
-            {/* Showing X–Y of Z */}
             <p style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '10px' }}>
-              Showing {start}–{end} of {total}
+              Showing {start}–{end} of {meta.total}
             </p>
 
-            {/* Patient rows */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {patients.map(p => {
                 const gs = GENDER_COLORS[p.gender] || GENDER_COLORS.Other;
@@ -223,9 +220,7 @@ export default function PatientsList({ token, refreshKey }) {
                       e.currentTarget.style.borderColor = 'var(--color-border)';
                     }}
                   >
-                    {/* Left */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                      {/* Name + badges */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
                         <button
                           onClick={() => setSelectedPatient(p)}
@@ -267,7 +262,6 @@ export default function PatientsList({ token, refreshKey }) {
                           </span>
                         )}
                       </div>
-                      {/* Sub-details */}
                       <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '12px', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <User size={11} /> Age {p.age}
@@ -275,13 +269,10 @@ export default function PatientsList({ token, refreshKey }) {
                         <span style={{ fontSize: '12px', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <Phone size={11} /> {p.phone}
                         </span>
-                        {p.email && (
-                          <span style={{ fontSize: '12px', color: '#475569' }}>{p.email}</span>
-                        )}
+                        {p.email && <span style={{ fontSize: '12px', color: '#475569' }}>{p.email}</span>}
                       </div>
                     </div>
 
-                    {/* Right: date + ID */}
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
                         <Calendar size={11} /> {formatDate(p.created_at)}
@@ -293,19 +284,17 @@ export default function PatientsList({ token, refreshKey }) {
               })}
             </div>
 
-            {/* Pagination bar */}
             <Pagination
-              page={page}
-              totalPages={totalPages}
-              onPrev={() => goTo(page - 1)}
-              onNext={() => goTo(page + 1)}
+              page={meta.page}
+              totalPages={meta.total_pages}
+              onPrev={() => goTo(meta.page - 1)}
+              onNext={() => goTo(meta.page + 1)}
               onGo={goTo}
             />
           </>
         )}
       </div>
 
-      {/* Detail / Edit Modal */}
       {selectedPatient && (
         <PatientDetailModal
           patient={selectedPatient}

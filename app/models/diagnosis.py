@@ -12,4 +12,4 @@ class Diagnosis(Base):
     description   = Column(Text, nullable=False)
     severity      = Column(String(20), default="moderate", nullable=False)
     diagnosed_by  = Column(Integer, ForeignKey("users.id"), nullable=False)
-    diagnosed_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    diagnosed_at  = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)

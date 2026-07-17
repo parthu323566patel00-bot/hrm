@@ -25,16 +25,22 @@ export default function LoginForm() {
     e.preventDefault();
     setEncryptedPayload('');
 
-    // Capture ciphertext for the debug panel before the full login flow
+    // Validate inputs
+    if (!email || !password) {
+      return; // Form validation will handle this
+    }
+
+    // Encrypt password for display and confirm cryptographic setup.
     try {
       const ciphertext = encryptPassword(password);
       setEncryptedPayload(ciphertext);
-    } catch {
-      // Encryption error surfaces through login() → context error state
+      // Only proceed to login if encryption succeeded. AuthContext.login will encrypt once.
+      await login(email, password);
+      setPassword('');
+    } catch (err) {
+      // Encryption failed - error is already set in context by encryptPassword or login
+      console.error('Login failed:', err.message);
     }
-
-    await login(email, password);
-    setPassword('');
   };
 
   return (

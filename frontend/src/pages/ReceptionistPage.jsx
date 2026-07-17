@@ -5,9 +5,10 @@
  * Provides patient registration and patient search/listing.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { apiFetch } from '../services/api';
 import BackgroundBlobs from '../components/layout/BackgroundBlobs';
 import DashboardHeader from '../components/layout/DashboardHeader';
 import RegisterPatientForm from '../features/receptionist/RegisterPatientForm';
@@ -18,15 +19,24 @@ import TodaysAppointments from '../features/receptionist/TodaysAppointments';
 export default function ReceptionistPage() {
   const { userProfile, token, logout } = useAuth();
 
-  const [patientRefreshKey, setPatientRefreshKey]   = useState(0);
-  const [apptRefreshKey, setApptRefreshKey]         = useState(0);
-  const [showBookModal, setShowBookModal]           = useState(false);
+  const [patientRefreshKey, setPatientRefreshKey] = useState(0);
+  const [apptRefreshKey, setApptRefreshKey]       = useState(0);
+  const [showBookModal, setShowBookModal]         = useState(false);
+  // Departments fetched once at page level — shared by BookAppointmentModal
+  const [departments, setDepartments]             = useState([]);
+
+  useEffect(() => {
+    if (!token) return;
+    apiFetch('/departments/', {}, token)
+      .then(setDepartments)
+      .catch(() => {});
+  }, [token]);
 
   const handlePatientRegistered = () => setPatientRefreshKey(k => k + 1);
 
   const handleAppointmentBooked = () => {
     setShowBookModal(false);
-    setApptRefreshKey(k => k + 1); // refresh today's list
+    setApptRefreshKey(k => k + 1);
   };
 
   return (
@@ -81,10 +91,10 @@ export default function ReceptionistPage() {
         </main>
       </div>
 
-      {/* Book Appointment Modal */}
       {showBookModal && (
         <BookAppointmentModal
           token={token}
+          departments={departments}
           onClose={() => setShowBookModal(false)}
           onBooked={handleAppointmentBooked}
         />

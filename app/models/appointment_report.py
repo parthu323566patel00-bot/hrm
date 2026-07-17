@@ -17,4 +17,4 @@ class AppointmentReport(Base):
     stored_filename = Column(String(255), nullable=False, unique=True)
     file_size = Column(BigInteger, nullable=False)          # bytes
     mime_type = Column(String(100), nullable=False)
-    uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    uploaded_at = Column(DateTime(timezone=True), default=datetime.utcnow)

@@ -8,24 +8,12 @@
  */
 
 import React from 'react';
-
-const ROLE_TITLES = {
-  1: 'Super Admin',
-  2: 'Hospital Admin',
-  3: 'Receptionist',
-  4: 'Doctor',
-  5: 'Nurse',
-  6: 'Lab Technician',
-  7: 'Radiologist',
-  8: 'Pharmacist',
-  9: 'Billing Clerk',
-  10: 'Inventory Manager',
-};
+import { ROLE_LABELS } from '../../constants/roles';
 
 export default function WelcomeBanner({ userProfile }) {
   const roleTitle = userProfile?.is_superuser
     ? 'Super Admin'
-    : ROLE_TITLES[userProfile?.role_id] || 'Staff';
+    : ROLE_LABELS[userProfile?.role_id] || 'Staff';
 
   return (
     <section className="welcome-banner">

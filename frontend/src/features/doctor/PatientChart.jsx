@@ -224,7 +224,7 @@ export default function PatientChart({ appointment, token, onClose, onVisitUpdat
               borderRight: '1px solid #f1f5f9',
               overflowY: 'auto', padding: '16px',
             }}>
-              <PatientHistory history={history} />
+              <PatientHistory history={history} token={token} patientId={appointment.patient_id} />
             </div>
           )}
 

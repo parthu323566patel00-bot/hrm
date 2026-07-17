@@ -13,4 +13,4 @@ class VisitAttachment(Base):
     file_size         = Column(BigInteger, nullable=False)
     mime_type         = Column(String(100), nullable=False)
     uploaded_by       = Column(Integer, ForeignKey("users.id"), nullable=False)
-    uploaded_at       = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    uploaded_at       = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)

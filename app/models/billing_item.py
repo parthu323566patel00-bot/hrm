@@ -13,4 +13,4 @@ class BillingItem(Base):
     amount      = Column(Float, default=0.0, nullable=False)
     currency    = Column(String(10), default="USD", nullable=False)
     status      = Column(String(20), default="PENDING", nullable=False)
-    created_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at  = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)

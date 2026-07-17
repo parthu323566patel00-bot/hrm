@@ -13,4 +13,4 @@ class RadiologyOrder(Base):
     clinical_indication = Column(Text, nullable=False)
     status              = Column(String(30), default="PENDING", nullable=False)
     ordered_by          = Column(Integer, ForeignKey("users.id"), nullable=False)
-    ordered_at          = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    ordered_at          = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)

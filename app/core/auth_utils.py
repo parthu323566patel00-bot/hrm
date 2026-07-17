@@ -5,6 +5,29 @@ from app.models.permission import Permission
 from app.models.role_permission import RolePermission
 from app.models.user_permission import UserPermission
 
+
+def has_role(user: User, *role_ids: int) -> bool:
+    """
+    Return True if the user's role_id is in the provided set.
+    Superusers always return True (bypass role checks).
+
+    Usage:
+        if not has_role(current_user, RoleId.DOCTOR):
+            raise HTTPException(403, ...)
+        if has_role(current_user, RoleId.SUPER_ADMIN, RoleId.HOSPITAL_ADMIN):
+            ...
+    """
+    if user.is_superuser:
+        return True
+    return user.role_id in role_ids
+
+
+def is_admin(user: User) -> bool:
+    """Return True if user is Super Admin, Hospital Admin, or superuser."""
+    from app.core.constants.roles import RoleId
+    return user.is_superuser or user.role_id in (RoleId.SUPER_ADMIN, RoleId.HOSPITAL_ADMIN)
+
+
 async def has_permission(db: AsyncSession, user: User, perm_code: str) -> bool:
     """
     Check if a user has a specific permission code.

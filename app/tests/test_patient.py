@@ -37,23 +37,23 @@ def test_patient_management_flow(client: TestClient, db):
             perms_mapped[code] = p
             
         # Role 3 (Receptionist)
-        role = Role(id=3, tenant_id="default-hospital", name="Receptionist", description="Front Desk")
+        role = Role(id=3, tenant_id="default-hospital", name="Nurse", description="Nursing Staff")
         db.add(role)
         await db.commit()
         await db.refresh(role)
         
-        # Bind permissions to Role 3
+        # Bind permissions to Role 3 (Nurse)
         for p in perms_mapped.values():
-            rp = RolePermission(tenant_id="default-hospital", role_id=3, permission_id=p.id, role_name="Receptionist")
+            rp = RolePermission(tenant_id="default-hospital", role_id=3, permission_id=p.id, role_name="Nurse")
             db.add(rp)
         await db.commit()
 
-        # Seed receptionist user
+        # Seed nurse user
         user_in = UserCreate(
-            email="receptionist@medicore.com",
+            email="nurse@medicore.com",
             tenant_id="default-hospital",
             role_id=3,
-            password="receptionistpass",
+            password="nursepass",
             full_name="Alice Smith",
             is_superuser=False,
             is_active=True
@@ -75,21 +75,18 @@ def test_patient_management_flow(client: TestClient, db):
 
     # 2. Register Patient
     patient_data = {
-        "first_name": "John",
-        "last_name": "Doe",
+        "name": "John Doe",
+        "age": 36,
         "gender": "Male",
-        "date_of_birth": "1990-05-15",
         "phone": "+1234567890",
         "email": "johndoe@example.com",
         "address": "123 Health Ave, Clinic City",
-        "emergency_contact_name": "Jane Doe",
-        "emergency_contact_phone": "+1987654321",
-        "blood_type": "O+"
+        "blood_group": "O+"
     }
     create_res = client.post("/api/v1/patients/", json=patient_data, headers=headers)
     assert create_res.status_code == status.HTTP_201_CREATED
     p_id = create_res.json()["id"]
-    assert create_res.json()["first_name"] == "John"
+    assert create_res.json()["name"] == "John Doe"
 
     # 3. Retrieve Patient details
     get_res = client.get(f"/api/v1/patients/{p_id}", headers=headers)
@@ -99,8 +96,9 @@ def test_patient_management_flow(client: TestClient, db):
     # 4. Search patient
     search_res = client.get("/api/v1/patients/?q=Doe", headers=headers)
     assert search_res.status_code == status.HTTP_200_OK
-    assert len(search_res.json()) >= 1
-    assert search_res.json()[0]["id"] == p_id
+    search_data = search_res.json()["data"]
+    assert len(search_data) >= 1
+    assert search_data[0]["id"] == p_id
 
     # 5. Update patient info
     update_payload = {
@@ -119,9 +117,9 @@ def test_patient_management_flow(client: TestClient, db):
     # 7. Listing default exclusion of archived
     list_active_res = client.get("/api/v1/patients/", headers=headers)
     assert list_active_res.status_code == status.HTTP_200_OK
-    assert len(list_active_res.json()) == 0
+    assert len(list_active_res.json()["data"]) == 0
 
     # 8. Listing with archived option
     list_all_res = client.get("/api/v1/patients/?include_archived=true", headers=headers)
     assert list_all_res.status_code == status.HTTP_200_OK
-    assert len(list_all_res.json()) >= 1
+    assert len(list_all_res.json()["data"]) >= 1

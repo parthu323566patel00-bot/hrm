@@ -15,13 +15,7 @@ import {
   CheckCircle, AlertCircle, Shield,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-
-const ROLE_LABELS = {
-  1: 'Super Admin', 2: 'Hospital Admin', 3: 'Receptionist',
-  4: 'Doctor',      5: 'Nurse',          6: 'Lab Technician',
-  7: 'Radiologist', 8: 'Pharmacist',     9: 'Billing Clerk',
-  10: 'Inventory Manager',
-};
+import { ROLE_LABELS } from '../../constants/roles';
 
 export default function EditProfilePanel({ onClose }) {
   const { userProfile, updateProfile, encryptPassword } = useAuth();

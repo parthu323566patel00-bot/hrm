@@ -40,6 +40,11 @@ export default function RegisterPatientForm({ token, onSuccess }) {
     setErrorMsg('');
     setSuccessMsg('');
 
+    // Guard: don't call API if token is missing
+    if (!token) {
+      return setErrorMsg('Authentication required. Please log in.');
+    }
+
     // Client-side required field validation
     if (!form.name.trim())   return setErrorMsg('Patient name is required.');
     if (!form.age)           return setErrorMsg('Age is required.');

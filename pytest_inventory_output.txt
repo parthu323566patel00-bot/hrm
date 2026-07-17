@@ -1,0 +1,126 @@
+...                                                                      [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  c:\Users\edges\Desktop\Medicore-hms\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+app\schemas\invitation.py:8
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\invitation.py:8: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class InvitationOut(BaseModel):
+
+app\schemas\department.py:13
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\department.py:13: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class DepartmentOut(DepartmentBase):
+
+app\schemas\patient.py:42
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\patient.py:42: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class PatientOut(PatientBase):
+
+app\schemas\appointment.py:20
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\appointment.py:20: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class ReportOut(BaseModel):
+
+app\schemas\appointment.py:31
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\appointment.py:31: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class AppointmentOut(BaseModel):
+
+app\schemas\appointment.py:49
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\appointment.py:49: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class DoctorOut(BaseModel):
+
+app\schemas\visit.py:30
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\visit.py:30: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class VitalsOut(VitalsCreate):
+
+app\schemas\visit.py:45
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\visit.py:45: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class ClinicalNoteOut(ClinicalNoteCreate):
+
+app\schemas\visit.py:62
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\visit.py:62: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class DiagnosisOut(DiagnosisCreate):
+
+app\schemas\visit.py:81
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\visit.py:81: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class PrescriptionOut(PrescriptionCreate):
+
+app\schemas\visit.py:97
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\visit.py:97: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class LabOrderOut(LabOrderCreate):
+
+app\schemas\visit.py:114
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\visit.py:114: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class RadiologyOrderOut(RadiologyOrderCreate):
+
+app\schemas\visit.py:125
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\visit.py:125: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class AttachmentOut(BaseModel):
+
+app\schemas\visit.py:138
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\visit.py:138: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class BillingItemOut(BaseModel):
+
+app\schemas\visit.py:151
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\visit.py:151: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class AuditLogOut(BaseModel):
+
+app\schemas\visit.py:165
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\visit.py:165: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class MedicalRecordOut(BaseModel):
+
+app\schemas\visit.py:184
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\visit.py:184: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class VisitChartOut(BaseModel):
+
+app\schemas\visit.py:207
+  c:\Users\edges\Desktop\Medicore-hms\app\schemas\visit.py:207: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class VisitSummaryOut(BaseModel):
+
+app\api\v1\endpoints\nurse.py:93
+  c:\Users\edges\Desktop\Medicore-hms\app\api\v1\endpoints\nurse.py:93: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class NursePatientRow(BaseModel):
+
+app\documents\schemas.py:12
+  c:\Users\edges\Desktop\Medicore-hms\app\documents\schemas.py:12: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class DocumentStatusOut(BaseModel):
+
+app\documents\schemas.py:22
+  c:\Users\edges\Desktop\Medicore-hms\app\documents\schemas.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class DocumentMetaOut(BaseModel):
+
+app\documents\schemas.py:40
+  c:\Users\edges\Desktop\Medicore-hms\app\documents\schemas.py:40: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class DocumentContentOut(BaseModel):
+
+app/tests/test_inventory.py: 88 warnings
+  c:\Users\edges\Desktop\Medicore-hms\.venv\Lib\site-packages\sqlalchemy\sql\schema.py:3623: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    return util.wrap_callable(lambda ctx: fn(), fn)  # type: ignore
+
+app/tests/test_inventory.py: 22 warnings
+  c:\Users\edges\Desktop\Medicore-hms\app\inventory\audit.py:36: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    created_at=datetime.utcnow(),
+
+app/tests/test_inventory.py::test_purchase_order_and_goods_receipt_response_batching
+app/tests/test_inventory.py::test_inventory_stock_transaction_and_ledger
+  c:\Users\edges\Desktop\Medicore-hms\app\api\v1\endpoints\inventory.py:1714: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    purchase_date=purchase_order_in.purchase_date or datetime.utcnow(),
+
+app/tests/test_inventory.py::test_purchase_order_and_goods_receipt_response_batching
+app/tests/test_inventory.py::test_inventory_stock_transaction_and_ledger
+  c:\Users\edges\Desktop\Medicore-hms\app\api\v1\endpoints\inventory.py:1995: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    received_date=goods_receipt_in.received_date or datetime.utcnow(),
+
+app/tests/test_inventory.py::test_inventory_stock_transaction_and_ledger
+  c:\Users\edges\Desktop\Medicore-hms\app\inventory\service.py:146: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    current_date = datetime.utcnow().date()
+
+app/tests/test_inventory.py::test_inventory_stock_transaction_and_ledger
+  c:\Users\edges\Desktop\Medicore-hms\app\inventory\service.py:166: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    if batch.expiry_date < datetime.utcnow().date():
+
+app/tests/test_inventory.py::test_inventory_stock_transaction_and_ledger
+  c:\Users\edges\Desktop\Medicore-hms\app\inventory\service.py:110: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    created_at=datetime.utcnow(),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+3 passed, 140 warnings in 19.23s

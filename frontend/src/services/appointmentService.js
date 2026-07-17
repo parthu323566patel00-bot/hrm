@@ -88,3 +88,18 @@ export function cancelAppointment(token, appointmentId) {
     token,
   );
 }
+
+/** Stream/download receptionist-uploaded report file — returns a Blob URL. */
+export async function downloadAppointmentReport(token, appointmentId, reportId, filename) {
+  const res = await fetch(`${API_BASE_URL}/appointments/${appointmentId}/reports/${reportId}/file`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || 'report';
+  a.click();
+  URL.revokeObjectURL(url);
+}

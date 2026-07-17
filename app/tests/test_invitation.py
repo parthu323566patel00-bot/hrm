@@ -100,7 +100,7 @@ def test_user_invitation_flow(client: TestClient, db):
     reg_data = reg_res.json()
     assert reg_data["email"] == "invited_doctor@example.com"
     assert reg_data["tenant_id"] == "default-hospital"
-    assert reg_data["role_id"] == 4
+    assert reg_data["role_id"] == 2
 
     # 5. Verify the token is now marked as used
     val_res_retry = client.get(f"/api/v1/auth/invite/validate?token={token}")
@@ -120,5 +120,5 @@ def test_user_invitation_flow(client: TestClient, db):
     assert doc_profile_res.status_code == status.HTTP_200_OK
     doc_profile = doc_profile_res.json()
     assert doc_profile["email"] == "invited_doctor@example.com"
-    assert doc_profile["role_id"] == 4
+    assert doc_profile["role_id"] == 2
     assert doc_profile["tenant_id"] == "default-hospital"

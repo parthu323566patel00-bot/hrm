@@ -21,13 +21,15 @@ from typing import Any, List, Optional
 
 from fastapi import (
     APIRouter, Depends, File, Form, HTTPException,
-    Query, UploadFile, status,
+    Query, Request, UploadFile, status, BackgroundTasks,
 )
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.api.deps import get_current_user
 from app.core.auth_utils import has_permission
+from app.core.constants.roles import RoleId
 from app.core.database import get_db
 from app.models.appointment import Appointment
 from app.models.appointment_report import AppointmentReport
@@ -84,13 +86,13 @@ async def list_doctors_by_department(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Any:
-    """Return doctors (role_id=4) assigned to the given department."""
+    """Return doctors (role_id=2) assigned to the given department."""
     rows = await db.execute(
         select(User).join(
             DoctorDepartment, DoctorDepartment.doctor_id == User.id
         ).filter(
             DoctorDepartment.department_id == department_id,
-            User.role_id == 4,
+            User.role_id == RoleId.DOCTOR,
             User.is_active == True,         # noqa: E712
             User.tenant_id == current_user.tenant_id,
         )
@@ -118,7 +120,7 @@ async def list_all_doctors(
     """Return all active doctors in the tenant regardless of department."""
     rows = await db.execute(
         select(User).filter(
-            User.role_id == 4,
+            User.role_id == RoleId.DOCTOR,
             User.is_active == True,         # noqa: E712
             User.tenant_id == current_user.tenant_id,
         )
@@ -188,6 +190,7 @@ async def get_available_slots(
 # ---------------------------------------------------------------------------
 @router.post("/", response_model=AppointmentOut, status_code=status.HTTP_201_CREATED)
 async def create_appointment(
+    background_tasks: BackgroundTasks,
     patient_id: int = Form(...),
     doctor_id: int = Form(...),
     department_id: Optional[int] = Form(None),
@@ -218,7 +221,7 @@ async def create_appointment(
     doc_res = await db.execute(
         select(User).filter(
             User.id == doctor_id,
-            User.role_id == 4,
+            User.role_id == RoleId.DOCTOR,
             User.is_active == True,         # noqa: E712
             User.tenant_id == current_user.tenant_id,
         )
@@ -285,7 +288,10 @@ async def create_appointment(
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to book appointment: {str(exc)}")
 
-    # Save files
+    # Save files and register in document pipeline
+    from app.documents.upload import document_upload_service
+    from app.documents.services.processing import run_processing
+
     saved_reports = []
     upload_dir = _upload_dir(appt.id)
     for orig_name, ext, mime, content in file_contents:
@@ -302,6 +308,29 @@ async def create_appointment(
         )
         db.add(report)
         saved_reports.append(report)
+
+        # Find matching UploadFile in the reports argument to pass to document upload service
+        matching_file = next((f for f in reports if f.filename == orig_name), None)
+        if matching_file:
+            try:
+                # Seek back to 0 in case the file was read
+                await matching_file.seek(0)
+                doc = await document_upload_service.upload(
+                    db=db,
+                    file=matching_file,
+                    patient_id=patient_id,
+                    tenant_id=current_user.tenant_id,
+                    uploaded_by=current_user.id,
+                    role_id=current_user.role_id or 0,
+                    document_type="misc",
+                )
+                if doc and not doc.is_duplicate:
+                    background_tasks.add_task(
+                        run_processing, doc.id, current_user.id, current_user.tenant_id
+                    )
+            except Exception as e:
+                # Log warning but do not abort appointment creation
+                print(f"Warning: Failed to process receptionist upload in OCR pipeline: {e}")
 
     if saved_reports:
         try:
@@ -390,12 +419,7 @@ async def list_my_appointments(
 ) -> Any:
     """
     Return appointments assigned to the logged-in doctor, enriched with
-    patient_name and department_name.
-    filter values:
-      today    – only today
-      upcoming – today + future (default)
-      past     – before today
-      all      – everything
+    patient_name and department_name. Uses bulk lookups — no N+1 queries.
     """
     if not await has_permission(db, current_user, "appointment:view"):
         raise HTTPException(status_code=403, detail="No permission to view appointments.")
@@ -406,43 +430,43 @@ async def list_my_appointments(
         Appointment.tenant_id == current_user.tenant_id,
         Appointment.doctor_id == current_user.id,
     )
-
     if filter == "today":
         q = q.filter(Appointment.appointment_date == today_str)
     elif filter == "upcoming":
         q = q.filter(Appointment.appointment_date >= today_str)
     elif filter == "past":
         q = q.filter(Appointment.appointment_date < today_str)
-    # "all" — no date filter
 
     q = q.order_by(Appointment.appointment_date, Appointment.time_slot)
     res = await db.execute(q)
     appts = res.scalars().all()
+    if not appts:
+        return []
 
-    result = []
-    for a in appts:
-        pat_res = await db.execute(select(Patient).filter(Patient.id == a.patient_id))
-        pat = pat_res.scalars().first()
+    # Bulk-fetch patients and departments in 2 queries max
+    patient_ids = list({a.patient_id for a in appts})
+    dept_ids    = list({a.department_id for a in appts if a.department_id})
 
-        dept_name = None
-        if a.department_id:
-            dept_res = await db.execute(select(Department).filter(Department.id == a.department_id))
-            dept = dept_res.scalars().first()
-            dept_name = dept.name if dept else None
+    pat_map = {p.id: p for p in (await db.execute(select(Patient).filter(Patient.id.in_(patient_ids)))).scalars()}
+    dept_map = {}
+    if dept_ids:
+        dept_map = {d.id: d for d in (await db.execute(select(Department).filter(Department.id.in_(dept_ids)))).scalars()}
 
-        result.append({
-            "id": a.id,
-            "patient_id": a.patient_id,
-            "patient_name": pat.name if pat else "Unknown",
-            "doctor_id": a.doctor_id,
-            "department_name": dept_name,
+    return [
+        {
+            "id":               a.id,
+            "patient_id":       a.patient_id,
+            "patient_name":     pat_map.get(a.patient_id, None) and pat_map[a.patient_id].name or "Unknown",
+            "doctor_id":        a.doctor_id,
+            "department_name":  dept_map.get(a.department_id, None) and dept_map[a.department_id].name or None,
             "appointment_date": a.appointment_date,
-            "time_slot": a.time_slot,
-            "notes": a.notes,
-            "status": a.status,
-            "created_at": a.created_at,
-        })
-    return result
+            "time_slot":        a.time_slot,
+            "notes":            a.notes,
+            "status":           a.status,
+            "created_at":       a.created_at,
+        }
+        for a in appts
+    ]
 
 
 
@@ -453,8 +477,8 @@ async def list_today_appointments(
 ) -> Any:
     """
     Return today's appointments for the tenant, enriched with
-    patient_name, doctor_name and department_name for display.
-    Ordered by time_slot.
+    patient_name, doctor_name and department_name.
+    Uses JOINs — no N+1 per-row queries.
     """
     if not await has_permission(db, current_user, "appointment:view"):
         raise HTTPException(status_code=403, detail="No permission to view appointments.")
@@ -468,38 +492,36 @@ async def list_today_appointments(
         ).order_by(Appointment.time_slot)
     )
     appts = res.scalars().all()
+    if not appts:
+        return []
 
-    result = []
-    for a in appts:
-        # Patient name
-        pat_res = await db.execute(select(Patient).filter(Patient.id == a.patient_id))
-        pat = pat_res.scalars().first()
+    # Bulk-fetch all patients, doctors, departments needed — no per-row queries
+    patient_ids    = list({a.patient_id for a in appts})
+    doctor_ids     = list({a.doctor_id  for a in appts})
+    dept_ids       = list({a.department_id for a in appts if a.department_id})
 
-        # Doctor name
-        doc_res = await db.execute(select(User).filter(User.id == a.doctor_id))
-        doc = doc_res.scalars().first()
+    pat_map  = {p.id: p for p in (await db.execute(select(Patient).filter(Patient.id.in_(patient_ids)))).scalars()}
+    doc_map  = {u.id: u for u in (await db.execute(select(User).filter(User.id.in_(doctor_ids)))).scalars()}
+    dept_map = {}
+    if dept_ids:
+        dept_map = {d.id: d for d in (await db.execute(select(Department).filter(Department.id.in_(dept_ids)))).scalars()}
 
-        # Department name
-        dept_name = None
-        if a.department_id:
-            dept_res = await db.execute(select(Department).filter(Department.id == a.department_id))
-            dept = dept_res.scalars().first()
-            dept_name = dept.name if dept else None
-
-        result.append({
-            "id": a.id,
-            "patient_id": a.patient_id,
-            "patient_name": pat.name if pat else "Unknown",
-            "doctor_id": a.doctor_id,
-            "doctor_name": doc.full_name or doc.email if doc else "Unknown",
-            "department_name": dept_name,
+    return [
+        {
+            "id":               a.id,
+            "patient_id":       a.patient_id,
+            "patient_name":     pat_map.get(a.patient_id, None) and pat_map[a.patient_id].name or "Unknown",
+            "doctor_id":        a.doctor_id,
+            "doctor_name":      (doc_map.get(a.doctor_id) and (doc_map[a.doctor_id].full_name or doc_map[a.doctor_id].email)) or "Unknown",
+            "department_name":  dept_map.get(a.department_id, None) and dept_map[a.department_id].name or None,
             "appointment_date": a.appointment_date,
-            "time_slot": a.time_slot,
-            "notes": a.notes,
-            "status": a.status,
-            "created_at": a.created_at,
-        })
-    return result
+            "time_slot":        a.time_slot,
+            "notes":            a.notes,
+            "status":           a.status,
+            "created_at":       a.created_at,
+        }
+        for a in appts
+    ]
 
 
 
@@ -583,4 +605,52 @@ async def update_appointment(
         notes=appt.notes, status=appt.status,
         created_at=appt.created_at, updated_at=appt.updated_at,
         reports=rpt_res.scalars().all(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /appointments/{id}/reports/{report_id}/file — download report
+# ---------------------------------------------------------------------------
+@router.get("/{appointment_id}/reports/{report_id}/file")
+async def download_appointment_report(
+    appointment_id: int,
+    report_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """Download/stream a receptionist-uploaded report from an appointment."""
+    if current_user.role_id not in (
+        RoleId.SUPER_ADMIN, RoleId.HOSPITAL_ADMIN, RoleId.RECEPTIONIST,
+        RoleId.DOCTOR, RoleId.NURSE,
+    ):
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    res = await db.execute(
+        select(AppointmentReport).filter(
+            AppointmentReport.id == report_id,
+            AppointmentReport.appointment_id == appointment_id,
+        )
+    )
+    report = res.scalars().first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found.")
+
+    appt_res = await db.execute(
+        select(Appointment).filter(
+            Appointment.id == appointment_id,
+            Appointment.tenant_id == current_user.tenant_id,
+        )
+    )
+    appt = appt_res.scalars().first()
+    if not appt:
+        raise HTTPException(status_code=404, detail="Appointment not found.")
+
+    file_path = os.path.join(_upload_dir(appointment_id), report.stored_filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk.")
+
+    return FileResponse(
+        path=file_path,
+        media_type=report.mime_type,
+        filename=report.original_filename,
     )

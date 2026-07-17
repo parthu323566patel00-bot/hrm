@@ -26,11 +26,19 @@ import {
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import { validateInviteToken } from './services/authService';
+import { ROLES } from './constants/roles';
 import LoginPage from './pages/LoginPage';
 import InviteRegisterPage from './pages/InviteRegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import ReceptionistPage from './pages/ReceptionistPage';
 import DoctorPage from './pages/DoctorPage';
+import NursePage from './pages/NursePage';
+import PharmacyPage from './pages/PharmacyPage';
+import LaboratoryPage from './pages/LaboratoryPage';
+import RadiologyPage from './pages/RadiologyPage';
+import BillingPage from './pages/BillingPage';
+import InventoryPage from './pages/InventoryPage';
+
 
 // ─── Protected route wrapper ─────────────────────────────────────────────────
 function ProtectedRoute({ children }) {
@@ -39,12 +47,17 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+function InventoryManagerRoute({ children }) {
+  const { userProfile } = useAuth();
+  if (!userProfile || userProfile.role_id !== ROLES.INVENTORY_MANAGER) return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
 // ─── Public route wrapper (redirect to correct page if already logged in) ─────
 function PublicRoute({ children }) {
   const { token, userProfile } = useAuth();
   if (token && userProfile) {
-    if (userProfile.role_id === 3) return <Navigate to="/receptionist" replace />;
-    if (userProfile.role_id === 4) return <Navigate to="/doctor" replace />;
+    if (userProfile.role_id === ROLES.INVENTORY_MANAGER) return <Navigate to="/inventory" replace />;
     return <Navigate to="/dashboard" replace />;
   }
   return children;
@@ -161,6 +174,22 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      {/* Nurse station */}
+      <Route path="/nurse" element={<ProtectedRoute><NursePage /></ProtectedRoute>} />
+
+      {/* Role-specific worklist pages */}
+      <Route path="/pharmacy"   element={<ProtectedRoute><PharmacyPage /></ProtectedRoute>} />
+      <Route path="/laboratory" element={<ProtectedRoute><LaboratoryPage /></ProtectedRoute>} />
+      <Route path="/radiology"  element={<ProtectedRoute><RadiologyPage /></ProtectedRoute>} />
+      <Route path="/billing"    element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
+      <Route path="/inventory" element={
+        <ProtectedRoute>
+          <InventoryManagerRoute>
+            <InventoryPage />
+          </InventoryManagerRoute>
+        </ProtectedRoute>
+      } />
 
       {/* Catch-all → home */}
       <Route path="*" element={<Navigate to="/" replace />} />
